@@ -12,18 +12,44 @@ object SnowParser extends JavaTokenParsers {
 	case class SFun(args: List[SType], returnType: SType) extends SType
 	case class STuple(values: List[SType]) extends SType
 	case class SVar(var typ: Option[SType]) extends SType
+	object SType {
+		var counter = 0
+		def id_of_typ(t: SType) = {
+			t match {
+				case SUnit() => "u"
+				case SBool() => "b"
+				case SLong() => "l"
+				case SDouble() => "d"
+				case SString() => "s"
+				case SFun(_, _) => "f"
+				case STuple(_) => "t"
+				case SVar(_) => error("id_of_typ called on variable-type")
+			}
+		}
+		def gen_tmp(t: SType): AToken = {
+			val res = "T" + id_of_typ(t) + counter
+			counter += 1
+			AToken(res)
+		}
+
+		def genid(s: String): AToken = {
+			counter += 1
+			val res = s + counter
+			AToken(res)
+		}
+	}
 	def genType() = SVar(None)
 
 
 	def parse(str: String) = parseAll(program, str)
 
 	trait AST
+	case class AUnit() extends AST
 	case class ABool(value: Boolean) extends AST
 	case class ALong(value: Long) extends AST
 	case class ADouble(value: Double) extends AST
 	case class AString(value: String) extends AST
-	case class AList(values: List[AST]) extends AST
-	case class AToken(name: String) extends AST
+	case class AToken(val name: String) extends AST
 	case class ATuple(values: List[AST]) extends AST
 	case class AIf(te: AST, pro: AST, ne: AST) extends AST
 	case class ALet(bindVar: (AToken, SType), bindVal: AST, body: AST) extends AST
@@ -49,10 +75,7 @@ object SnowParser extends JavaTokenParsers {
 
 	def addType(i: AToken) = (i, genType())
 
-	def program: Parser[List[AST]] = rep(exp)
-	def app: Parser[AST] = "("~>exp~rep(exp)<~")" ^^ {
-		case e1~ex => AApp(e1, ex)
-	}
+	def program: Parser[AST] = exp
 	def exp: Parser[AST] = ( 
 		real
 		| hexInteger
@@ -69,6 +92,9 @@ object SnowParser extends JavaTokenParsers {
 		| neg
 		| dneg
 		)
+	def app: Parser[AST] = "("~>exp~rep(exp)<~")" ^^ {
+		case e1~ex => AApp(e1, ex)
+	}
 	def integer: Parser[ALong] = wholeNumber ^^ (n => ALong(n.toLong))
 	def real: Parser[ADouble] = ( """\-?\d+\.\d*([eE]\-?\d+)?""".r ^^ (d => ADouble(d.toDouble))
 		| """\-?\d+[eE]\-?\d+""".r ^^ (d => ADouble(d.toDouble)) )
